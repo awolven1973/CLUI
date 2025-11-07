@@ -4,7 +4,7 @@
 (defun cocoa-copy-string-to-pasteboard (string)
   (let ((pasteboard (ns::|pasteboardWithName:| #@NSPasteboard NSPasteboardNameGeneral)))
     (ns:|declareTypes:owner:| pasteboard (array-with-objects NSPasteboardTypeString) nil)
-    (ns:|setString:forType:| pasteboard (objc-runtime::make-nsstring string) NSPasteboardTypeString)
+    (ns:|setString:forType:| pasteboard (make-nsstring string) NSPasteboardTypeString)
     (values)))
 
 (defun cocoa-copy-string-from-pasteboard ()

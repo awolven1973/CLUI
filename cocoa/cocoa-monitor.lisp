@@ -4,7 +4,7 @@
 (defun get-cocoa-display-name (display-id &optional (screen nil))
   (when screen
     (when (ns:|respondsToSelector:| screen @(localizedName))
-      (let ((name (ns:|valueForKey:| screen (objc-runtime::make-nsstring "localizedName"))))
+      (let ((name (ns:|valueForKey:| screen (make-nsstring "localizedName"))))
 	(unless (cffi:null-pointer-p name)
 	  (return-from get-cocoa-display-name (objc-runtime::extract-nsstring name))))))
 
@@ -183,11 +183,11 @@
 	       (setq screen nil)
 
 	       (block nil
-		 (objc-runtime.data-extractors::map-nsarray 
+		 (map-nsarray 
 		  (lambda (scr)
 		    (let* ((description (ns::|deviceDescription| scr)) ;; an NSDictionary
 			   (screen-number-object
-			    (ns::|objectForKey:| description (objc-runtime::make-nsstring "NSScreenNumber")))
+			    (ns::|objectForKey:| description (make-nsstring "NSScreenNumber")))
 			   (screen-number (ns::|unsignedIntValue| screen-number-object)))
 		      (when (= (CGDisplayUnitNumber screen-number) unit-number)
 			(setq screen scr)

@@ -36,7 +36,7 @@
 (cffi:defcfun (objc_registerClassPair "objc_registerClassPair") :void (class :pointer))
 
 (cffi:defcstruct objc_super
-  (reciever :pointer)
+  (receiver :pointer)
   (super_class :pointer))
 
 (cffi:defcfun (set-uncaught-exception-handler "objc_setUncaughtExceptionHandler")
@@ -54,24 +54,26 @@
      (unwind-protect (progn ,@body)
        (ns::|release| ,var))))
 
+#+NIL
 (defun super-msg-send (thing selector &rest args)
   (cffi:with-foreign-object (objc-super '(:struct objc_super))
-    (setf (cffi:foreign-slot-value objc-super '(:struct objc_super) 'reciever) (objc-object-id thing)
+    (setf (cffi:foreign-slot-value objc-super '(:struct objc_super) 'receiver) (objc-object-id thing)
 	  (cffi:foreign-slot-value objc-super '(:struct objc_super) 'super_class) (class_getSuperclass (object_getClass (objc-object-id thing))))
     (eval `(objc_msgSendSuper ,objc-super ,selector ,@args))))
 
+#+NIL
 (defun super-msg-send-stret (thing selector &rest args)
   (cffi:with-foreign-object (objc-super '(:struct objc_super))
-    (setf (cffi:foreign-slot-value objc-super '(:struct objc_super) 'reciever) (objc-object-id thing)
+    (setf (cffi:foreign-slot-value objc-super '(:struct objc_super) 'receiver) (objc-object-id thing)
 	  (cffi:foreign-slot-value objc-super '(:struct objc_super) 'super_class) (class_getSuperclass (object_getClass (objc-object-id thing))))
     (eval `(objc_msgSendSuper_stret ,objc-super ,selector ,@args))))
-
+#+NIL
 (defmacro new-msg-send-super (selector ((&rest arg-types) return-type))
   (let ((arg-syms (mapcar (lambda (_) _ (gensym))
                           arg-types)))
     `(lambda ,(cons 'target arg-syms)
        (cffi:with-foreign-object (objc-super '(:struct objc_super))
-	 (setf (cffi:foreign-slot-value objc-super '(:struct objc_super) 'reciever) (objc-object-id target)
+	 (setf (cffi:foreign-slot-value objc-super '(:struct objc_super) 'receiver) (objc-object-id target)
 	       (cffi:foreign-slot-value objc-super '(:struct objc_super) 'super_class) (class_getSuperclass (object_getClass (objc-object-id target))))
 	 (cffi:foreign-funcall "objc_msgSendSuper"
                              :pointer objc-super
@@ -105,7 +107,15 @@
 						    ctypes
 						    nil)))))
 
-(defun send (object message return-type &rest args)
+
+(defun objc-msg-send (object message return-type &rest args)
+  #+ARM64
+  (apply #'ff-call "objc_msgSend"
+	     return-type
+	     :pointer (objc-object-id object)
+	     :pointer message
+	     args)
+  #-ARM64
   (if (consp return-type)
       (apply #'ff-call "objc_msgSend_stret"
 	     return-type

@@ -11,6 +11,19 @@
 (defun make-nsrange (loc len)
   (list 'ns::location loc 'ns::length len))
 
+(defun map-nsarray (fn arr)
+  (loop for i below (ns::|count| arr)
+     collect (funcall fn (ns::|objectAtIndex:| arr i))))
+
+(defun make-utf8-c-string (string &key (start 0) (end nil))
+  #+SBCL
+  (sb-alien::%make-alien-string string :start start :end end :external-format :UTF-8))
+
+(defconstant NSUTF8StringEncoding 4)
+
+(defun make-nsstring (string)
+  (ns::|initWithUTF8String:| (ns:|alloc| #@NSString) (make-utf8-c-string string)))
+
 (cffi:defcstruct ns::|_NSModalSession|) ;;fixme
 (cffi:defcstruct NS::|_NSZone|)
 
@@ -92,7 +105,7 @@
 	       (loop for i from 0 below (length sequence)
 		  append (list :pointer (elt sequence i)))
 	       (list :pointer (cffi:null-pointer)))))
-  (apply #'send #@NSArray @(arrayWithObjects:) :pointer args)))
+    (apply #'objc-msg-send #@NSArray @(arrayWithObjects:) :pointer args)))
 
 (defun NS:|addLocalMonitorForEventsMatchingMask:handler:| (thing arg0 handler)
   (send (objc-object-id thing) @(addLocalMonitorForEventsMatchingMask:handler:) ':POINTER 
@@ -104,10 +117,6 @@
   (let ((message-lambda 
          (make-message-lambda @(initWithAttributedString:) (( :POINTER)  :POINTER)))) 
     (funcall message-lambda (objc-object-id thing)  (objc-object-id _))))
-
-
-
-
 
 (defun super-init-with-frame (self frame)
   (let ((selector (make-super-message-lambda

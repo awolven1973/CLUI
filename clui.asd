@@ -73,6 +73,7 @@
    (:file "cocoa/core-animation")
    (:file "cocoa/ns-support")
    (:file "cocoa/ns-bindings")
+   (:file "cocoa/ns-bindings-2")
    (:file "cocoa/cocoa-display")
    (:file "cocoa/cocoa-event")
    (:file "cocoa/cocoa-keyboard")

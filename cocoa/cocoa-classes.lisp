@@ -197,11 +197,6 @@
     :initform nil
     :accessor last-occluded?)
    
-   (retina?
-    :type boolean
-    :initform nil
-    :accessor window-retina?)
-   
    (%width
     :type real
     :initform 0

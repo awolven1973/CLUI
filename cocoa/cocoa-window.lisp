@@ -102,7 +102,7 @@
 
 (defun set-cocoa-window-title (window string)
   (with-autorelease-pool (ppol)
-    (ns:|setTitle:| window (objc-runtime::make-nsstring string))
+    (ns:|setTitle:| window (make-nsstring string))
     (values)))
 
 (defun cocoa-window-titled? (window)
@@ -256,7 +256,9 @@
 
 (defun show-cocoa-window (window)
   (with-autorelease-pool (pool)
-    (ns:|orderFront:| window nil)))
+    #+NIL
+    (ns:|orderFront:| window nil)
+    (ns:|makeKeyAndOrderFront:| window nil)))
 
 (defun hide-cocoa-window (window)
   (with-autorelease-pool (pool)
@@ -319,7 +321,7 @@
       (deiconify-cocoa-window window))
   value)
 
-(defun cocoa-window-visible? (window)
+(defun get-cocoa-window-visible (window)
   (with-autorelease-pool (pool)
     (ns:|isVisible| window)))
 
@@ -929,7 +931,7 @@
 
     (when (or (/= x-scale (last-xscale window))
 	      (/= y-scale (last-yscale window)))
-      (when (and (window-retina? window) (window-layer window))
+      (when (window-layer window)
 	(ns:|setContentsScale:| (window-layer window) (ns:|backingScaleFactor| window)))
 
       (setf (last-xscale window) x-scale
@@ -974,6 +976,24 @@
 (defun content-view-update-tracking-areas (view)
   (cocoa-window-update-tracking-areas (content-view-owner view)))
 
+(defun content-view-add-tracking-area (content-view
+				       &optional
+					 (options
+					  (logior NSTrackingMouseEnteredAndExited
+						  NSTrackingActiveInKeyWindow
+						  NSTrackingEnabledDuringMouseDrag
+						  NSTrackingCursorUpdate
+						  NSTrackingInVisibleRect
+						  NSTrackingAssumeInside)))
+  (let ((tracking-area
+	  (setf (content-view-tracking-area content-view)
+		(ns::|initWithRect:options:owner:userInfo:|
+		     (alloc #@NSTrackingArea) (ns:|bounds| content-view) options content-view nil))))
+
+    (finish-output)
+    
+    (ns:|addTrackingArea:| content-view tracking-area)))
+
 (defmethod cocoa-window-update-tracking-areas ((window cocoa:window-mixin))
   (let ((content-view (window-content-view window)))
     (let ((tracking-area (content-view-tracking-area content-view)))
@@ -982,20 +1002,9 @@
 	(ns:|removeTrackingArea:| content-view tracking-area)
 	(ns:|release| tracking-area))
 
-      (let ((options (logior NSTrackingMouseEnteredAndExited
-			     NSTrackingActiveInKeyWindow
-			     NSTrackingEnabledDuringMouseDrag
-			     NSTrackingCursorUpdate
-			     NSTrackingInVisibleRect
-			     NSTrackingAssumeInside)))
+      (content-view-add-tracking-area content-view))
 
-	(setq tracking-area
-	      (setf (content-view-tracking-area content-view)
-		    (ns::|initWithRect:options:owner:userInfo:|
-			 (alloc #@NSTrackingArea) (ns:|bounds| content-view) options content-view nil)))
-
-	(ns:|addTrackingArea:| content-view tracking-area)
-	(super-update-tracking-areas content-view))))
+    (super-update-tracking-areas content-view))
   (values))
 
 (defmethod cocoa-window-update-tracking-areas ((window cocoa::helper-window))
@@ -1084,7 +1093,6 @@
   (coerce (1- (- (ns-get-height (CGDisplayBounds (CGMainDisplayID))) y)) 'double-float))
 
 (deftraceable-callback content-view-scroll-wheel-callback :void ((self :pointer) (_cmd :pointer) (event :pointer))
-;;  (declare (ignorable _cmd))
   (let ((content-view (gethash (sap-int self)
 			       *content-view->clos-content-view-table*)))
     (when content-view
@@ -1291,13 +1299,15 @@
 				      (floating? nil)
 				      (transparent? nil)
 				      (frame-name "clui")
-				      (retina? t)
+				      (visible? t)
 				    &allow-other-keys)
 
   #+sbcl
   (sb-int:set-floating-point-modes :traps '())
   
-  (let ((content-rect))
+  (let ((display (window-display window))
+	(frame))
+    
     (if (window-fullscreen-monitor window)
 	
 	(multiple-value-bind (xpos ypos) (get-cocoa-monitor-pos (window-fullscreen-monitor window))
@@ -1305,14 +1315,9 @@
 		 (width (video-mode-width mode))
 		 (height (video-mode-height mode)))
 
-	    (setq content-rect (make-nsrect xpos ypos width height))))
+	    (setq frame (make-nsrect xpos ypos width height))))
 
-	(if (or (null xpos) (null ypos))
-	    (setq content-rect (make-nsrect 0 0 (or width 640) (or height 480)))
-
-	    (setq content-rect (make-nsrect xpos
-					    (cocoa-transform-y (1- (+ ypos (or height 480.0d0))))
-					    (or width 640) (or height 480)))))
+	(setq frame (make-nsrect (or xpos 0) (cocoa-transform-y (or ypos 0)) (or width 640) (or height 480))))
 
     (let ((style-mask NSWindowStyleMaskMiniaturizable))
 
@@ -1329,76 +1334,80 @@
 
       (setf (objc-object-id window)
 	    (NS:|initWithContentRect:styleMask:backing:defer:|
-		(alloc (objc-window-class (window-display window)))
-		content-rect
+		(alloc (objc-window-class display))
+		frame
 		style-mask
 		NSBackingStoreBuffered nil))
+
 
       (when (cffi:null-pointer-p (objc-object-id window))
 	(error "Cocoa: Failed to create window."))
 
+      (progn
       (setf (window-delegate window)
 	    (make-instance 'window-delegate
-			   :ptr (alloc-init (objc-window-delegate-class (window-display window)))
+			   :ptr (alloc-init (objc-window-delegate-class display))
 			   :owner window))
 
       (ns:|setDelegate:| window (window-delegate window))
-	  
-      (setf (window-content-view window)
-	    (make-instance 'content-view
-			   :ptr (alloc (objc-content-view-class (window-display window)))
-			   :owner window
-			   :marked-text (alloc-init #@NSMutableAttributedString)))
 
-      (super-init-with-frame (window-content-view window) (ns:|frame| window))
-      (ns:|updateTrackingAreas| (window-content-view window))
-      (ns:|registerForDraggedTypes:| (window-content-view window) (array-with-objects (objc-runtime::make-nsstring "NSPasteboardTypeURL")))
+      (let ((content-view
+	      (setf (window-content-view window)
+		    (make-instance 'content-view
+				   :ptr (alloc (objc-content-view-class display))
+				   :owner window
+				   :marked-text (alloc-init #@NSMutableAttributedString)))))
 
-      (ns:|setContentView:| window (window-content-view window))
+	(super-init-with-frame content-view (ns:|frame| window))
+      
+	(content-view-add-tracking-area content-view)
+      
+	(ns:|registerForDraggedTypes:| content-view (array-with-objects (make-nsstring "NSPasteboardTypeURL")))
 
-      (setf (last-cocoa-screen window) (ns::|screen| window))
+	(ns:|setContentView:| window content-view)
 
-      (apply #'initialize-window-devices window args)
+	(setf (last-cocoa-screen window) (ns::|screen| window))
+
+	(apply #'initialize-window-devices window args)
 	
-      (if (window-fullscreen-monitor window)
+	(if (window-fullscreen-monitor window)
 
-	  (ns:|setLevel:| window (1+ NSMainMenuWindowLevel))
+	    (ns:|setLevel:| window (1+ NSMainMenuWindowLevel))
 	    
-	  (progn
+	    (progn
 	      
-	    (when (or (null xpos) (null ypos))
-	      (setf (cascade-point (window-display window))
-		    (ns:|cascadeTopLeftFromPoint:| window (cascade-point (window-display window)))))
+	      (when (or (null xpos) (null ypos))
+		(setf (cascade-point display)
+		      (ns:|cascadeTopLeftFromPoint:| window (cascade-point display))))
 
-	    (let ((behavior (if resizable?
-				(logior NSWindowCollectionBehaviorFullScreenPrimary
-					NSWindowCollectionBehaviorManaged)
-				NSWindowCollectionBehaviorFullScreenNone)))
+	      (let ((behavior (if resizable?
+				  (logior NSWindowCollectionBehaviorFullScreenPrimary
+					  NSWindowCollectionBehaviorManaged)
+				  NSWindowCollectionBehaviorFullScreenNone)))
 		  
-	      (ns:|setCollectionBehavior:| window behavior))
+		(ns:|setCollectionBehavior:| window behavior))
 
-	    (when floating?
-	      (ns:|setLevel:| window NSFloatingWindowLevel))
+	      (when floating?
+		(ns:|setLevel:| window NSFloatingWindowLevel))
 	      
-	    (when maximized?
-	      (ns:|zoom:| window t))))
+	      (when maximized?
+		(ns:|zoom:| window t))))
 
-      (when (and frame-name (not (string= frame-name "")))
-	(ns:|setFrameAutosaveName:| window (objc-runtime::make-nsstring frame-name)))
+	(when (and frame-name (not (string= frame-name "")))
+	  (ns:|setFrameAutosaveName:| window (make-nsstring frame-name)))
 	  
-      (setf (window-retina? window) retina?)
+	(when transparent?
+	  (ns:|setOpaque:| window t)
+	  (ns:|setHasShadow:| window t)
+	  (ns:|setBackgroundColor:| window (ns:|clearColor| #@NScolor)))
 
-      (when transparent?
-	(ns:|setOpaque:| window t)
-	(ns:|setHasShadow:| window t)
-	(ns:|setBackgroundColor:| window (ns:|clearColor| #@NScolor)))
+	(ns:|makeFirstResponder:| window content-view)
+	(set-cocoa-window-title window (or title "clui"))
+	(ns:|setAcceptsMouseMovedEvents:| window t)
+	(ns:|setRestorable:| window nil)))
+      (set-cocoa-window-visible window visible?)
 
-      (ns:|makeFirstResponder:| window (window-content-view window))
-      (set-cocoa-window-title window (or title "clui"))
-      (ns:|setAcceptsMouseMovedEvents:| window t)
-      (ns:|setRestorable:| window nil)
-
-      t)))
+	t)))
 
 (defmethod initialize-window-devices ((window cocoa:window-mixin) &rest args &key &allow-other-keys)
   (declare (ignore args))
@@ -1856,37 +1865,53 @@
     window-class))
 
 (defun create-cocoa-helper-window (display)
-  (make-instance (helper-window-class display)
-		 :h (ns:|initWithContentRect:styleMask:backing:defer:|
-			(ns:|alloc| #@NSWindow)
-			(make-nsrect 0 0 1 1)
-			0
-			NSBackingStoreBuffered nil)))
+  #+sbcl
+  (sb-int:set-floating-point-modes :traps '())
+  (let* ((frame (make-nsrect 0 (cocoa-transform-y 0) 1 1))
+	 (w (make-instance (helper-window-class display)
+			   :h (ns:|initWithContentRect:styleMask:backing:defer:|
+				  (ns:|alloc| #@NSWindow)
+				  frame
+				  0
+				  NSBackingStoreBuffered nil)))
+	 (content-view))
+      
+    (setf (window-content-view w)
+	  (setq content-view
+		(make-instance 'content-view
+			       :ptr (ns:|initWithFrame:| (alloc (objc-content-view-class display)) frame)
+			       :owner w
+			       :marked-text (alloc-init #@NSMutableAttributedString))))
+      
+    (content-view-add-tracking-area content-view)
 
+    (ns:|setContentView:| w content-view)
+
+    (initialize-helper-window display w)
+    w))
+
+(defmethod initialize-helper-window (display helper-window)
+  (values))
 
 (defun small-test ()
   #+sbcl
   (sb-int:set-floating-point-modes :traps '())
-  (print objc-runtime::ns-app)
-  (finish-output)
   (with-autorelease-pool (pool)
     (let ((window (ns:|initWithContentRect:styleMask:backing:defer:|
-		       [#@NSWindow @(alloc)]
-		       (make-nsrect 0 0 300 300)
-		       (logior NSWindowStyleMaskTitled
-			       NSWindowStyleMaskClosable
-			       NSWindowStyleMaskMiniaturizable
-			       NSWindowStyleMaskResizable)
-		       NSBackingStoreBuffered nil)))
-      (print objc-runtime::ns-app)
-      (ns:|setTitle:| window (objc-runtime::make-nsstring "Look! A Window"))
-      (print objc-runtime::ns-app)
+		      (ns:|alloc| #@NSWindow)
+		      (make-nsrect 0 0 300 300)
+		      (logior NSWindowStyleMaskTitled
+			      NSWindowStyleMaskClosable
+			      NSWindowStyleMaskMiniaturizable
+			      NSWindowStyleMaskResizable)
+		      NSBackingStoreBuffered nil)))
+      (ns:|setTitle:| window (make-nsstring "Look! A Window"))
       (ns:|setIsVisible:| window t)
-      (print objc-runtime::ns-app)
+      ;;(print (ns:|frame| window))
+      ;;(print (ns:|contentRectForFrameRect:| window (make-nsrect 0 0 300 300)))      
       (ns:|makeKeyAndOrderFront:| window nil)
-      (print objc-runtime::ns-app)
       (ns:|run| objc-runtime::ns-app)
-      window)))
+      (setq w window))))
 
 #|
    NSWindow *win = [[NSWindow alloc]
@@ -1998,7 +2023,7 @@
   (let* ((screen (ns::|screen| window))
 	 (description (ns::|deviceDescription| screen)) ;; is this unique
 	 (screen-number-object
-	  (ns::|objectForKey:| description (objc-runtime::make-nsstring "NSScreenNumber")))
+	  (ns::|objectForKey:| description (make-nsstring "NSScreenNumber")))
 	 (screen-number (ns::|unsignedIntValue| screen-number-object))
 	 (unit-number (CGDisplayUnitNumber screen-number))
 	 (display (window-display window)))

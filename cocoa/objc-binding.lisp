@@ -5,6 +5,7 @@
 
 (defvar *export-list* ())
 
+#+x86-64
 (defmacro make-message-lambda (selector ((&rest arg-types) return-type))
   (let ((arg-syms (mapcar (lambda (_) _ (gensym))
                           arg-types)))
@@ -25,6 +26,17 @@
 				 ,@(mapcan #'list arg-types arg-syms)
 				 ,return-type)))))
 
+#+arm64
+(defmacro make-message-lambda (selector ((&rest arg-types) return-type))
+  (let ((arg-syms (mapcar (lambda (_) _ (gensym)) arg-types)))
+    `(lambda ,(cons 'target arg-syms)
+       (cffi:foreign-funcall "objc_msgSend"
+			     :pointer target
+			     :pointer ,selector
+			     ,@(mapcan #'list arg-types arg-syms)
+			     ,return-type))))
+
+#+x86-64
 (defmacro make-super-message-lambda (selector ((&rest arg-types) return-type))
   (let ((arg-syms (mapcar (lambda (_) _ (gensym))
                           arg-types)))
@@ -50,6 +62,19 @@
 				   :pointer ,selector
 				   ,@(mapcan #'list arg-types arg-syms)
 				   ,return-type))))))
+
+#+arm64
+(defmacro make-super-message-lambda (selector ((&rest arg-types) return-type))
+  (let ((arg-syms (mapcar (lambda (_) _ (gensym)) arg-types)))
+    `(lambda ,(cons 'target arg-syms)
+       (cffi:with-foreign-object (objc-super '(:struct objc_super))
+	 (setf (cffi:foreign-slot-value objc-super '(:struct objc_super) 'receiver) (objc-object-id target)
+	       (cffi:foreign-slot-value objc-super '(:struct objc_super) 'super_class) (ns::|superclass| (ns::|class| (objc-object-id target))))
+	 (cffi:foreign-funcall "objc_msgSendSuper"
+			       :pointer objc-super
+			       :pointer ,selector
+			       ,@(mapcan #'list arg-types arg-syms)
+			       ,return-type)))))
 
 
 

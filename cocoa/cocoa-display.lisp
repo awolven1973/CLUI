@@ -209,73 +209,73 @@
 	
 	(ns:|setSubmenu:| app-menu-item app-menu)
 	(ns:|addItemWithTitle:action:keyEquivalent:| app-menu
-	    (objc-runtime::make-nsstring (concatenate 'string "About " app-name))
-	    @(orderFrontStandardAboutPanel:) (objc-runtime::make-nsstring ""))
+	    (make-nsstring (concatenate 'string "About " app-name))
+	    @(orderFrontStandardAboutPanel:) (make-nsstring ""))
 
 	(ns:|addItem:| app-menu (ns:|separatorItem| #@NSMenuItem))
 
 	(let ((services-menu (alloc-init #@NSMenu)))
 	  (ns:|setServicesMenu:| objc-runtime::ns-app services-menu)
 	  (ns:|addItemWithTitle:action:keyEquivalent:| app-menu
-	      (objc-runtime::make-nsstring "Services") (cffi:null-pointer) (objc-runtime::make-nsstring ""))
+	      (make-nsstring "Services") (cffi:null-pointer) (make-nsstring ""))
 
 	  (ns:|release| services-menu)
 	  (ns:|addItem:| app-menu (ns:|separatorItem| #@NSMenuItem))
 
 	  (ns:|addItemWithTitle:action:keyEquivalent:| app-menu
-	      (objc-runtime::make-nsstring (concatenate 'string "Hide " app-name))
-	      @(hide:) (objc-runtime::make-nsstring "h"))
+	      (make-nsstring (concatenate 'string "Hide " app-name))
+	      @(hide:) (make-nsstring "h"))
 
 	  (ns:|setKeyEquivalentModifierMask:| 
 	      (ns:|addItemWithTitle:action:keyEquivalent:| app-menu
-		  (objc-runtime::make-nsstring "Hide Others")
-		  @(hideOtherApplications:) (objc-runtime::make-nsstring "h"))
+		  (make-nsstring "Hide Others")
+		  @(hideOtherApplications:) (make-nsstring "h"))
 	      (logior NSEventModifierFlagOption NSEventModifierFlagCommand))
 
 	  (ns:|addItemWithTitle:action:keyEquivalent:| app-menu
-	      (objc-runtime::make-nsstring "Show All")
-	      @(unhideAllApplications:) (objc-runtime::make-nsstring ""))
+	      (make-nsstring "Show All")
+	      @(unhideAllApplications:) (make-nsstring ""))
 	  
 	  (ns:|addItem:| app-menu (ns:|separatorItem| #@NSMenuItem))
 
 	  (ns:|addItemWithTitle:action:keyEquivalent:| app-menu
-	      (objc-runtime::make-nsstring (concatenate 'string "Quit " app-name))
-	      @(terminate:) (objc-runtime::make-nsstring "q"))
+	      (make-nsstring (concatenate 'string "Quit " app-name))
+	      @(terminate:) (make-nsstring "q"))
 
 	  (ns:|addItemWithTitle:action:keyEquivalent:| bar
-	      (objc-runtime::make-nsstring "") (cffi:null-pointer) (objc-runtime::make-nsstring ""))
+	      (make-nsstring "") (cffi:null-pointer) (make-nsstring ""))
 
 	  (let ((window-menu-item (ns:|addItemWithTitle:action:keyEquivalent:| bar
-				      (objc-runtime::make-nsstring "") (cffi:null-pointer)
-				      (objc-runtime::make-nsstring "")))
-		(window-menu (ns:|initWithTitle:| (alloc #@NSMenu) (objc-runtime::make-nsstring "Window"))))
+				      (make-nsstring "") (cffi:null-pointer)
+				      (make-nsstring "")))
+		(window-menu (ns:|initWithTitle:| (alloc #@NSMenu) (make-nsstring "Window"))))
 
 	    (ns:|setWindowsMenu:| objc-runtime::ns-app window-menu)
 
 	    (ns:|setSubmenu:| window-menu-item window-menu)
 
 	    (ns:|addItemWithTitle:action:keyEquivalent:| window-menu
-		(objc-runtime::make-nsstring "Minimize")
+		(make-nsstring "Minimize")
 		@(performMiniaturize:)
-		(objc-runtime::make-nsstring "m"))
+		(make-nsstring "m"))
 
 	    (ns:|addItemWithTitle:action:keyEquivalent:| window-menu
-		(objc-runtime::make-nsstring "Zoom")
-		@(performZoom:) (objc-runtime::make-nsstring ""))
+		(make-nsstring "Zoom")
+		@(performZoom:) (make-nsstring ""))
 
 	    (ns:|addItem:| window-menu (ns:|separatorItem| #@NSMenuItem))
 
 	    (ns:|addItemWithTitle:action:keyEquivalent:| window-menu
-		(objc-runtime::make-nsstring "Bring All To Front")
+		(make-nsstring "Bring All To Front")
 		@(arrangeInFront:)
-		(objc-runtime::make-nsstring ""))
+		(make-nsstring ""))
 
 	    (ns:|addItem:| window-menu (ns:|separatorItem| #@NSMenuItem))
 
 	    (ns:|setKeyEquivalentModifierMask:|
 		(ns:|addItemWithTitle:action:keyEquivalent:| window-menu
-		    (objc-runtime::make-nsstring "Enter Full Screen")
-		    @(toggleFullScreen:) (objc-runtime::make-nsstring "f"))
+		    (make-nsstring "Enter Full Screen")
+		    @(toggleFullScreen:) (make-nsstring "f"))
 		(logior NSEventModifierFlagControl NSEventModifierFlagCommand))
 
 	    (ns:|performSelector:withObject:| objc-runtime::ns-app
@@ -321,9 +321,9 @@
 
       (change-to-resources-directory)
 
-      (let ((defaults (make-dictionary (cffi:null-pointer) (objc-runtime::make-nsstring "ApplePressAndHoldEnabled")))
+      (let ((defaults (make-dictionary (cffi:null-pointer) (make-nsstring "ApplePressAndHoldEnabled")))
 	    (NSTextInputContextKeyboardSelectionDidChangeNotification
-	     (objc-runtime::make-nsstring
+	     (make-nsstring
 	      "NSTextInputContextKeyboardSelectionDidChangeNotification")))
     
 	(ns::|registerDefaults:| (ns::|standardUserDefaults| #@NSUserDefaults) defaults)
@@ -349,19 +349,8 @@
 
 	(setf (default-screen display) (make-instance 'screen :display display))
 
-	(let ((helper-window
-	       (setf (helper-window display)
-		     (create-cocoa-helper-window display))))
-
-	  (setf (window-content-view helper-window)
-		(make-instance 'content-view
-			       :ptr (alloc (objc-content-view-class display))
-			       :owner helper-window
-			       :marked-text (alloc-init #@NSMutableAttributedString)))
-
-	  (ns:|setContentView:| helper-window (window-content-view helper-window))
-
-	  (initialize-helper-window display helper-window))
+	(setf (helper-window display)
+	      (create-cocoa-helper-window display))
 
 	t))))
 
