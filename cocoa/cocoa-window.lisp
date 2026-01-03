@@ -1104,17 +1104,18 @@
 	(pos (ns:|locationInWindow| event))
 	(window (content-view-owner view)))
     (multiple-value-bind (mods lock-mods) (translate-cocoa-flags window (ns:|modifierFlags| event))
-      (clim:handle-event window
-		    (make-instance 'pointer-wheel-event
-				   :window window
-				   :input-code +pointer-wheel+
-				   :x (ns-get-x pos)
-				   :y (ns-get-y pos)
-				   :xoffset (ns:|scrollingDeltaX| event)
-				   :yoffset (ns:|scrollingDeltaY| event)
-				   :modifier-state mods
+      (multiple-value-bind (x y) (cocoa-event-position window event)
+	(clim:handle-event window
+			   (make-instance 'pointer-wheel-event
+					  :window window
+					  :input-code +pointer-wheel+
+					  :x x
+					  :y y
+					  :xoffset (ns:|scrollingDeltaX| event)
+					  :yoffset (- (ns:|scrollingDeltaY| event))
+					  :modifier-state mods
 				   :lock-modifier-state lock-mods
-				   :timestamp time))))
+					  :timestamp time)))))
   (values))
 
 (deftraceable-callback content-view-has-marked-text-callback :char ((self :pointer) (_cmd :pointer))

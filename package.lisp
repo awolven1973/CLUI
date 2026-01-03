@@ -101,6 +101,7 @@
 	   #:window-content-scale
 	   #:request-window-attention
 	   #:window-display
+	   #:initialize-window-devices
 
 	   #:get-primary-monitor
 	   #:set-window-monitor
@@ -112,6 +113,7 @@
 	   #:poll-events
 	   #:wait-event
 	   #:run
+	   #:main
 
 	   #:choose-video-mode
 

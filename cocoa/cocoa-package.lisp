@@ -41,7 +41,10 @@
 	   #:vulkan-window
 	   #:nsgl-window
 
-	   #:display-with-krma-mixin
-	   #:display-with-krma
-	   #:krma-enabled-window-mixin
-	   #:krma-enabled-window))
+	   #:application-helper-selected-keyboard-input-source-changed
+	   #:application-should-terminate
+	   #:application-did-change-screen-parameters
+	   #:application-will-finish-launching
+	   #:application-did-finish-launching
+	   #:application-did-hide
+	   ))

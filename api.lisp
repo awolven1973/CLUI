@@ -1223,6 +1223,14 @@
   (setf (%window-cursor window) cursor)
   (%set-window-cursor (window-display window) window cursor))
 
-(defun run (&optional (display (default-display)))
-  (loop until (run-loop-exit? display)
-	do (wait-events display)))
+(defgeneric main (frame-manager &rest args &key &allow-other-keys)
+  (:documentation "Define your own main function for your custom frame-manager if necessary."))
+
+(defmethod main ((frame-manager display-mixin) &rest args)
+  (declare (ignore args))
+  (loop until (run-loop-exit? frame-manager)
+	do (wait-events frame-manager)))
+
+(defmethod main ((frame-manager cocoa:display-mixin) &rest args)
+  (declare (ignore args))
+  (ns:|run| frame-manager))

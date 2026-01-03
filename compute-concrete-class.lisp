@@ -88,19 +88,7 @@
   (declare (ignore protocol))
   (list* (find-class 'x11:local-server) initargs))
 
-#+x11
-(defmethod compute-make-display-instance-arguments (protocol
-						    (cocoa null)
-						    (metal null)
-						    (opengl null)
-						    (vulkan t)
-						    (wayland null)
-						    (win32 null)
-						    (x11 t)
-						    &rest initargs
-						    &key &allow-other-keys)
-  (declare (ignorable protocol))
-  (list* (find-class 'x11:local-server-with-krma) initargs))
+
 
 #+wayland
 (defmethod compute-make-display-instance-arugments (protocol

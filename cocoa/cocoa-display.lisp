@@ -16,10 +16,10 @@
   (let ((display (find-if (lambda (object)
 			    (typep object 'cocoa:display-mixin))
 			  *displays*)))
-    (application-helper-selected-keyboard-input-source-changed display)
+    (cocoa:application-helper-selected-keyboard-input-source-changed display)
     (values)))
 
-(defun application-helper-selected-keyboard-input-source-changed (display)
+(defun cocoa:application-helper-selected-keyboard-input-source-changed (display)
   (update-unicode-data display (slot-value display 'kPropertyUnicodeKeyLayoutData)))
 
 (defun make-helper-class ()
@@ -76,19 +76,19 @@
 (deftraceable-callback application-delegate-application-should-terminate-callback :pointer
     ((self :pointer) (_cmd :pointer) (notification :pointer))
   ;;  (declare (ignorable self _cmd))
-  (application-should-terminate notification))
+  (cocoa:application-should-terminate notification))
 
-(defun application-should-terminate (notification)
+(defun cocoa:application-should-terminate (notification)
   (declare (ignorable notification))
   (values))
 
 (deftraceable-callback application-delegate-application-did-change-screen-parameters-callback :void
     ((self :pointer) (_cmd :pointer) (notification :pointer))
 ;;  (declare (ignorable self _cmd))
-  (application-did-change-screen-parameters notification)
+  (cocoa:application-did-change-screen-parameters notification)
   (values))
 
-(defun application-did-change-screen-parameters (notification)
+(defun cocoa:application-did-change-screen-parameters (notification)
   (declare (ignorable notification))
   (values))
 
@@ -97,10 +97,10 @@
 ;;  (declare (ignorable self _cmd))
   (format t "~%application-will-finish-launching")
   (finish-output)
-  (application-will-finish-launching notification)
+  (cocoa:application-will-finish-launching notification)
   (values))
 
-(defun application-will-finish-launching (notification)
+(defun cocoa:application-will-finish-launching (notification)
   (declare (ignorable notification))
   (create-menu-bar)
   (values))
@@ -108,13 +108,13 @@
 (deftraceable-callback application-delegate-application-did-finish-launching-callback :void
     ((self :pointer) (_cmd :pointer) (notification :pointer))
   ;;  (declare (ignorable self _cmd))
-  (application-did-finish-launching (find-if #'(lambda (dpy)
-						 (typep dpy 'cocoa:display-mixin))
-					     *displays*)
-				    notification)
+  (cocoa:application-did-finish-launching (find-if #'(lambda (dpy)
+						       (typep dpy 'cocoa:display-mixin))
+						   *displays*)
+					  notification)
   (values))
 
-(defmethod application-did-finish-launching (self notification)
+(defmethod cocoa:application-did-finish-launching (self notification)
   (declare (ignorable notification))
   (ns::|setActivationPolicy:| objc-runtime::ns-app NSApplicationActivationPolicyRegular)
   (values))
@@ -124,10 +124,10 @@
 (deftraceable-callback application-delegate-application-did-hide-callback :void
     ((self :pointer) (_cmd :pointer) (notification :pointer))
   ;;  (declare (ignorable self _cmd))
-  (application-did-hide notification)
+  (cocoa:application-did-hide notification)
   (values))
 
-(defun application-did-hide (notification)
+(defun cocoa:application-did-hide (notification)
   (declare (ignorable notification))
   (values))
 
