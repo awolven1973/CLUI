@@ -6,7 +6,7 @@
     (when (ns:|respondsToSelector:| screen @(localizedName))
       (let ((name (ns:|valueForKey:| screen (make-nsstring "localizedName"))))
 	(unless (cffi:null-pointer-p name)
-	  (return-from get-cocoa-display-name (objc-runtime::extract-nsstring name))))))
+	  (return-from get-cocoa-display-name (extract-nsstring name))))))
 
   (let ((info)
 	(vendor-id-ref)

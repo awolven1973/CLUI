@@ -242,21 +242,4 @@
 		#:ptr-effective-sap
 		#:sap-plus
 		#:sap-int
-		#:int-sap)
-  #+OLD
-  (:import-from :noffi
-		#:copy-ptr
-		#:%cons-ptr
-		#:c-sizeof-type
-		#:c-addr-of
-		#:c-cast
-		#:ptr-value
-		#:cval-value
-		#:ptr-offset
-		#:c-aref
-		#:c->-addr
-		#:clet&
-		#:cons-ptr
-		#:ptr-nullptr-p
-
-		#:noffi-syntax #:clet #:c-addr-of #:pkg-use #:c-coerce #:defcfun))
+		#:int-sap))

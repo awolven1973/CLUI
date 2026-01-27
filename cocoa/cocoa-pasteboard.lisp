@@ -11,5 +11,5 @@
   (let* ((pasteboard (ns::|pasteboardWithName:| #@NSPasteboard NSPasteboardNameGeneral))
 	 (nsstring (ns:|stringForType:| pasteboard NSPasteboardTypeString)))
     (when nsstring
-      (objc-runtime::extract-nsstring nsstring))))
+      (extract-nsstring nsstring))))
     

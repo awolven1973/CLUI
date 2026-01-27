@@ -1,7 +1,7 @@
 
 #+(or windows os-windows)(pushnew :win32 cl:*features*)
 #+darwin(pushnew :cocoa cl:*features*)
-#+unix(pushnew :x11 cl:*features*)
+#+linux(pushnew :x11 cl:*features*)
 #+(and notyet wayland)(pushnew :wayland cl:*features*)
 
 (defsystem clui
@@ -52,7 +52,7 @@
 
 #+darwin
 (defsystem clui/cocoa
-  :depends-on (:objc-runtime)
+  :depends-on (:cffi :cffi-libffi :alexandria :serapeum :named-readtables)
   :serial t
   :components
   ((:file "package")
@@ -61,11 +61,12 @@
    (:file "classes")
    (:file "events")
    (:file "cocoa/cocoa-package")
-   (:file "cocoa/cocoa-classes")
-   (:file "x11/x11-package")
-   (:file "x11/x11-classes")
-   (:file "compute-concrete-class")
+   (:file "cocoa/objc-readtable")
    (:file "cocoa/objc-runtime")
+   (:file "cocoa/cocoa-classes")
+   ;;(:file "x11/x11-package")
+   ;;(:file "x11/x11-classes")
+   (:file "compute-concrete-class")
    (:file "cocoa/objc-binding")
    (:file "cocoa/iokit")
    (:file "cocoa/core-foundation")

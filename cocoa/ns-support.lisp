@@ -108,7 +108,7 @@
     (apply #'objc-msg-send #@NSArray @(arrayWithObjects:) :pointer args)))
 
 (defun NS:|addLocalMonitorForEventsMatchingMask:handler:| (thing arg0 handler)
-  (send (objc-object-id thing) @(addLocalMonitorForEventsMatchingMask:handler:) ':POINTER 
+  (objc-msg-send (objc-object-id thing) @(addLocalMonitorForEventsMatchingMask:handler:) ':POINTER 
 	':UNSIGNED-LONG-LONG arg0
 	':unsigned-long-long 0
 	':POINTER (objc-object-id handler)))
@@ -181,4 +181,8 @@
 
 (defun ns-get-height (ns-struct)
   (getf ns-struct 'ns::height))
-  
+
+(defun ns::|reason| (thing)
+  (let ((message-lambda 
+	  (make-message-lambda @(reason) (()  :POINTER)))) 
+    (funcall message-lambda (objc-object-id thing) )))

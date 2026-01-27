@@ -1,6 +1,73 @@
 (in-package :clui)
 (named-readtables:in-readtable :objc-readtable)
 
+(eval-when (:compile-toplevel :load-toplevel)
+  #+sbcl(declaim (sb-ext:muffle-conditions sb-ext:compiler-note)))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (cffi:define-foreign-library cocoa
+    (:darwin (:framework "Cocoa")))
+  (cffi:define-foreign-library foundation
+    (:darwin (:framework "Foundation")))
+  (cffi:define-foreign-library appkit
+    (:darwin (:framework "AppKit"))))
+
+(cffi:use-foreign-library foundation)
+(cffi:use-foreign-library cocoa)
+(cffi:use-foreign-library appkit)
+
+(cffi:defctype o-class :pointer)
+(cffi:defctype o-selector :pointer)
+
+(defparameter *selector-cache* (make-hash-table :test 'equal))
+(defparameter *class-cache* (make-hash-table :test 'equal))
+
+(cffi:defcfun (objc-sel-register-name "sel_registerName" :library foundation)
+    o-selector
+  (name :string))
+
+(cffi:defcfun (objc-look-up-class "objc_lookUpClass" :library foundation)
+    o-class
+  (name :string))
+
+(cffi:defcfun (objc-sel-get-name "sel_getName")
+    :string
+  (sel o-selector))
+
+(cffi:defcfun (objc-allocate-class-pair "objc_allocateClassPair" :library foundation)
+    :pointer
+  (superclass :pointer)
+  (name :string)
+  (extra-bytes :int))
+
+(cffi:defcfun (objc-register-class-pair "objc_registerClassPair" :library foundation)
+    :void
+  (superclass :pointer))
+
+(cffi:defcfun (objc-class-add-method "class_addMethod" :library foundation)
+    :boolean
+  (class :pointer)
+  (selector :pointer)
+  (cb :pointer)
+  (type :string))
+
+(cffi:defcvar (ns-app "NSApp" :library appkit) :pointer)
+
+(defun extract-nsstring (ns-str)
+  (ns::|UTF8String| ns-str))
+
+(defun objc-ensure-class (name)
+  (let ((objc-class (objc-look-up-class name)))
+    (when (and objc-class (not (cffi:null-pointer-p objc-class)))
+      (alexandria:ensure-gethash name *class-cache* objc-class))))
+
+(defun objc-ensure-selector (name)
+  (alexandria:ensure-gethash name
+                             *selector-cache*
+                             (objc-sel-register-name name)))
+
+
+
 (cffi:define-foreign-library metalkit
   (:darwin (:framework "MetalKit")))
 
@@ -30,8 +97,8 @@
 (cffi:defcfun (class_getSuperclass "class_getSuperclass") :pointer (cls :pointer))
 (cffi:defcfun (object_setInstanceVariable "object_setInstanceVariable") :pointer (object :pointer) (name :string) (value :pointer))
 (cffi:defcfun (object_getClass "object_getClass") :pointer (object :pointer))
-(cffi:defcfun (objc_msgSendSuper "objc_msgSendSuper") :pointer (obj :pointer) (selector :pointer) &rest)
-(cffi:defcfun (objc_msgSendSuper_stret "objc_msgSendSuper_stret") :pointer (obj :pointer) (selector :pointer) &rest)
+;;(cffi:defcfun (objc_msgSendSuper "objc_msgSendSuper") :pointer (obj :pointer) (selector :pointer) &rest)
+;;(cffi:defcfun (objc_msgSendSuper_stret "objc_msgSendSuper_stret") :pointer (obj :pointer) (selector :pointer) &rest)
 (cffi:defcfun (class_getProperty "class_getProperty") :pointer (class :pointer) (name :string))
 (cffi:defcfun (objc_registerClassPair "objc_registerClassPair") :void (class :pointer))
 
@@ -43,9 +110,10 @@
     :void
   (cb :pointer))
 
+
+
 (cffi:defcallback exception-handler :void ((exception :pointer))
-  (objc-runtime::with-selectors (reason)
-    (error "~&objc exception: ~a~%" (objc-runtime::extract-nsstring [exception reason]))))
+  (error "~&objc exception: ~a~%" (extract-nsstring (ns::|reason| exception))))
 
 (set-uncaught-exception-handler (cffi:callback exception-handler))
 
@@ -53,35 +121,6 @@
   `(let ((,var (ns::|new| #@NSAutoReleasePool)))
      (unwind-protect (progn ,@body)
        (ns::|release| ,var))))
-
-#+NIL
-(defun super-msg-send (thing selector &rest args)
-  (cffi:with-foreign-object (objc-super '(:struct objc_super))
-    (setf (cffi:foreign-slot-value objc-super '(:struct objc_super) 'receiver) (objc-object-id thing)
-	  (cffi:foreign-slot-value objc-super '(:struct objc_super) 'super_class) (class_getSuperclass (object_getClass (objc-object-id thing))))
-    (eval `(objc_msgSendSuper ,objc-super ,selector ,@args))))
-
-#+NIL
-(defun super-msg-send-stret (thing selector &rest args)
-  (cffi:with-foreign-object (objc-super '(:struct objc_super))
-    (setf (cffi:foreign-slot-value objc-super '(:struct objc_super) 'receiver) (objc-object-id thing)
-	  (cffi:foreign-slot-value objc-super '(:struct objc_super) 'super_class) (class_getSuperclass (object_getClass (objc-object-id thing))))
-    (eval `(objc_msgSendSuper_stret ,objc-super ,selector ,@args))))
-#+NIL
-(defmacro new-msg-send-super (selector ((&rest arg-types) return-type))
-  (let ((arg-syms (mapcar (lambda (_) _ (gensym))
-                          arg-types)))
-    `(lambda ,(cons 'target arg-syms)
-       (cffi:with-foreign-object (objc-super '(:struct objc_super))
-	 (setf (cffi:foreign-slot-value objc-super '(:struct objc_super) 'receiver) (objc-object-id target)
-	       (cffi:foreign-slot-value objc-super '(:struct objc_super) 'super_class) (class_getSuperclass (object_getClass (objc-object-id target))))
-	 (cffi:foreign-funcall "objc_msgSendSuper"
-                             :pointer objc-super
-                             :pointer ,selector
-                             ,@(mapcan #'list arg-types arg-syms)
-                             ,return-type)))))
-
-
 
 #+sbcl
 (defmethod objc-object-id ((thing sb-sys:system-area-pointer))

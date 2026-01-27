@@ -116,10 +116,10 @@
   (let* ((sel (method_getName m))
 	 (rt (method_copyReturnType m))
 	 (n (method_getNumberOfArguments m))
-	 (parsed-method-name (parse-method-name (objc-runtime::sel-get-name sel))))
+	 (parsed-method-name (parse-method-name (objc-sel-get-name sel))))
     (make-instance 'objc-method
 		   :name (first parsed-method-name)
-		   :selector (objc-runtime::sel-get-name sel)
+		   :selector (objc-sel-get-name sel)
 		   :return-type (decode-objc-type (cffi:foreign-string-to-lisp rt))
 		   :number-of-args n
 		   :args (let ((arg-names ()))
@@ -372,64 +372,6 @@
 	   (terpri stream)
 	 finally (princ ") :ns)" stream)))))
 
-#+old
-(defun process-arg (arg stream)
-  (terpri stream)
-  (princ "    " stream)
-  (with-slots (name type) arg
-    (format stream "'~S" type)
-    (princ " " stream)
-    (when (eq type :pointer)
-      (princ "(objc-object-id " stream))
-    (when (eq type :char) ;; assuming :char really means :bool (they would use :int otherwise)
-      (princ "(if " stream))
-    ;;(when (and (listp type) (or (eq :struct (car type)) (eq :union (car type))))
-      ;;(princ "'" stream))
-    (princ (string-downcase name) stream)
-    (when (eq type :char) ;; assuming :char really means :bool (they would use :int otherwise)
-      (princ " 1 0)" stream))
-    (when (eq type :pointer)
-      (princ ")" stream))))
-
-#+OLD
-(defun process-method (method stream)
-  (terpri stream)
-  (with-slots (name return-type args) method
-    ;; guessing that in objc same selector different class will have the same signature
-    (let ((sel-sym (intern (objc-method-selector method) :ns)))
-      (unless (gethash sel-sym *wrapped-selector-table*)
-	(princ "(defun " stream)
-	(format stream "~S" sel-sym)
-	(setf (gethash sel-sym *wrapped-selector-table*)
-	      sel-sym)
-	(princ " (thing" stream)
-	(loop for argz on args by #'cdr
-	   initially (when argz (princ " " stream))
-	   do (with-slots (name) (car argz)
-		(princ (string-downcase name) stream))
-	   when (cdr argz)
-	   do (princ " " stream))
-	
-	(princ ")" stream)
-	(terpri stream)
-	(when (eq return-type :char) ;; we'll assume returning a char actually means a bool
-	  (princ "  (if (= 0" stream))
-	(princ "  (send thing @(" stream)
-	(princ (objc-method-selector method) stream)
-	(princ ") " stream)
-	(format stream "'~S" return-type)
-
-	(loop for argz on args by #'cdr
-	   initially (when argz (princ " " stream))
-	   do (process-arg (car argz) stream)
-	   when (cdr argz)
-	   do (princ " " stream))
-
-	(princ ")" stream)
-	(when (eq return-type :char) ;; we'll assume returning a char actually means a bool
-	  (princ ") nil t)" stream))
-	(princ ")" stream)
-	(terpri stream)))))
 
 (defun process-arg-types-and-return-type (args ret-type stream)
   (princ "((" stream)

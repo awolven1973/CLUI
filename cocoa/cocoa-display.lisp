@@ -1,6 +1,9 @@
 (in-package :clui)
 (named-readtables:in-readtable :objc-readtable)
 
+(eval-when (:compile-toplevel :load-toplevel)
+  #+sbcl(declaim (sb-ext:muffle-conditions sb-ext:compiler-note)))
+
 (defun terminate-cocoa-application (display)
   ;; todo: close windows here.
   (ns:|stop:| display nil)
@@ -23,13 +26,13 @@
   (update-unicode-data display (slot-value display 'kPropertyUnicodeKeyLayoutData)))
 
 (defun make-helper-class ()
-  (let ((helper-class (objc-runtime::objc-allocate-class-pair #@NSObject "CluiAppHelper" 0)))
-    (objc-runtime::class-add-method helper-class @(doNothing:)
-				    (cffi:callback application-helper-do-nothing-callback)
-				    "v@:@")
-    (objc-runtime::class-add-method helper-class @(selectedKeyboardInputSourceChanged:)
-				    (cffi:callback application-helper-selected-keyboard-input-source-changed-callback)
-				    "v@:@")
+  (let ((helper-class (objc-allocate-class-pair #@NSObject "CluiAppHelper" 0)))
+    (objc-class-add-method helper-class @(doNothing:)
+			   (cffi:callback application-helper-do-nothing-callback)
+			   "v@:@")
+    (objc-class-add-method helper-class @(selectedKeyboardInputSourceChanged:)
+			   (cffi:callback application-helper-selected-keyboard-input-source-changed-callback)
+			   "v@:@")
     (objc_registerClassPair helper-class)
     helper-class))
 
@@ -54,17 +57,17 @@
   (alloc-init #@NSTouchBar))
 
 (defun make-window-controller-class ()
-  (let ((window-controller-class (objc-runtime::objc-allocate-class-pair #@NSWindowController "CluiWindowController" 0)))
+  (let ((window-controller-class (objc-allocate-class-pair #@NSWindowController "CluiWindowController" 0)))
 
-    (objc-runtime::class-add-method window-controller-class @(makeTouchBar)
+    (objc-class-add-method window-controller-class @(makeTouchBar)
 				    (cffi:callback window-controller-make-touch-bar-callback)
 				    "v@:")
     
-    (objc-runtime::class-add-method window-controller-class @(touchBar)
+    (objc-class-add-method window-controller-class @(touchBar)
 				    (cffi:callback window-controller-touch-bar-callback)
 				    "v@:")
 
-    (objc-runtime::class-add-method window-controller-class @(touchBar:makeItemForIdentifier:)
+    (objc-class-add-method window-controller-class @(touchBar:makeItemForIdentifier:)
 				    (cffi:callback window-controller-touch-bar-make-item-for-identifier-callback)
 				    "v@:@@")
     (objc_registerClassPair window-controller-class)
@@ -80,7 +83,7 @@
 
 (defun cocoa:application-should-terminate (notification)
   (declare (ignorable notification))
-  (sb-sys::int-sap 1))
+  (int-sap 1))
 
 (deftraceable-callback application-delegate-application-did-change-screen-parameters-callback :void
     ((self :pointer) (_cmd :pointer) (notification :pointer))
@@ -116,7 +119,7 @@
 
 (defmethod cocoa:application-did-finish-launching (self notification)
   (declare (ignorable notification))
-  (ns::|setActivationPolicy:| objc-runtime::ns-app NSApplicationActivationPolicyRegular)
+  (ns::|setActivationPolicy:| ns-app NSApplicationActivationPolicyRegular)
   (values))
 
 
@@ -134,23 +137,23 @@
 
 
 (defun make-application-delegate-class ()
-  (let ((application-delegate-class (objc-runtime::objc-allocate-class-pair
+  (let ((application-delegate-class (objc-allocate-class-pair
 				     #@NSObject "CluiApplicationDelegate" 0)))
-    (objc-runtime::class-add-method application-delegate-class @(applicationShouldTerminate:)
-				    (cffi:callback application-delegate-application-should-terminate-callback)
-				    "@@:@")
-    (objc-runtime::class-add-method application-delegate-class @(applicationDidChangeScreenParameters:)
-				    (cffi:callback application-delegate-application-did-change-screen-parameters-callback)
-				    "v@:@")
-    (objc-runtime::class-add-method application-delegate-class @(applicationWillFinishLaunching:)
-				    (cffi:callback application-delegate-application-will-finish-launching-callback)
-				    "v@:@")
-    (objc-runtime::class-add-method application-delegate-class @(applicationDidFinishLaunching:)
-				    (cffi:callback application-delegate-application-did-finish-launching-callback)
-				    "v@:@")
-    (objc-runtime::class-add-method application-delegate-class @(applicationDidHide:)
-				    (cffi:callback application-delegate-application-did-hide-callback)
-				    "v@:@")
+    (objc-class-add-method application-delegate-class @(applicationShouldTerminate:)
+			   (cffi:callback application-delegate-application-should-terminate-callback)
+			   "@@:@")
+    (objc-class-add-method application-delegate-class @(applicationDidChangeScreenParameters:)
+			   (cffi:callback application-delegate-application-did-change-screen-parameters-callback)
+			   "v@:@")
+    (objc-class-add-method application-delegate-class @(applicationWillFinishLaunching:)
+			   (cffi:callback application-delegate-application-will-finish-launching-callback)
+			   "v@:@")
+    (objc-class-add-method application-delegate-class @(applicationDidFinishLaunching:)
+			   (cffi:callback application-delegate-application-did-finish-launching-callback)
+			   "v@:@")
+    (objc-class-add-method application-delegate-class @(applicationDidHide:)
+			   (cffi:callback application-delegate-application-did-hide-callback)
+			   "v@:@")
 
     (objc_registerClassPair application-delegate-class)
     application-delegate-class))
@@ -200,7 +203,7 @@
 	    (setq app-name "Clui Application"))))
 
     (let ((bar (alloc-init #@NSMenu)))
-      (ns:|setMainMenu:| objc-runtime::ns-app bar)
+      (ns:|setMainMenu:| ns-app bar)
 
       
       (let ((app-menu-item (ns:|addItemWithTitle:action:keyEquivalent:| bar (ns:|string| #@NSString)
@@ -215,7 +218,7 @@
 	(ns:|addItem:| app-menu (ns:|separatorItem| #@NSMenuItem))
 
 	(let ((services-menu (alloc-init #@NSMenu)))
-	  (ns:|setServicesMenu:| objc-runtime::ns-app services-menu)
+	  (ns:|setServicesMenu:| ns-app services-menu)
 	  (ns:|addItemWithTitle:action:keyEquivalent:| app-menu
 	      (make-nsstring "Services") (cffi:null-pointer) (make-nsstring ""))
 
@@ -250,7 +253,7 @@
 				      (make-nsstring "")))
 		(window-menu (ns:|initWithTitle:| (alloc #@NSMenu) (make-nsstring "Window"))))
 
-	    (ns:|setWindowsMenu:| objc-runtime::ns-app window-menu)
+	    (ns:|setWindowsMenu:| ns-app window-menu)
 
 	    (ns:|setSubmenu:| window-menu-item window-menu)
 
@@ -278,7 +281,7 @@
 		    @(toggleFullScreen:) (make-nsstring "f"))
 		(logior NSEventModifierFlagControl NSEventModifierFlagCommand))
 
-	    (ns:|performSelector:withObject:| objc-runtime::ns-app
+	    (ns:|performSelector:withObject:| ns-app
 		@(setAppleMenu:) window-menu)
 
 	    (ns:|release| bar)
@@ -291,7 +294,7 @@
 
 (defun closure-like-thingy-named-block (event)
   (unless (logtest (ns::|modifierFlags| event) NSEventModifierFlagCommand)
-    (ns::|sendEvent:| (ns::|keyWindow| objc-runtime::ns-app) event))
+    (ns::|sendEvent:| (ns::|keyWindow| ns-app) event))
   event)
   
 (defun init-cocoa (display)

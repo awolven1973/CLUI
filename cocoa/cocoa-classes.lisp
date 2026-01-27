@@ -83,7 +83,7 @@
    (nib-objects)))
 
 (defmethod objc-object-id ((app cocoa:display-mixin))
-  objc-runtime::ns-app)
+  ns-app)
 
 (defmethod initialize-instance ((instance cocoa:display-mixin) &rest initargs &key &allow-other-keys)
   (declare (ignorable initargs))
