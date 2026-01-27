@@ -1491,6 +1491,13 @@
 					      :timestamp (get-internal-real-time))))))
     (values)))
 
+(defmethod clim:handle-event :before ((window cocoa::window-mixin) (event window-close-event-mixin))
+  (when (or (null (display-window-list-head (window-display window))) ;; pathological case
+	    (and (eql window (display-window-list-head (window-display window)))
+		 (or (eql window (window-next (display-window-list-head (window-display window))))
+		     (null (window-next (display-window-list-head (window-display window)))))))
+    ;; this is the last window
+    (ns:|terminate:| (clui::window-display window) window)))
 
 
   

@@ -80,7 +80,7 @@
 
 (defun cocoa:application-should-terminate (notification)
   (declare (ignorable notification))
-  (values))
+  (sb-sys::int-sap 1))
 
 (deftraceable-callback application-delegate-application-did-change-screen-parameters-callback :void
     ((self :pointer) (_cmd :pointer) (notification :pointer))

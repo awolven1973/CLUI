@@ -1231,6 +1231,7 @@
   (loop until (run-loop-exit? frame-manager)
 	do (wait-events frame-manager)))
 
+#+cocoa
 (defmethod main ((frame-manager cocoa:display-mixin) &rest args)
   (declare (ignore args))
   (ns:|run| frame-manager))
