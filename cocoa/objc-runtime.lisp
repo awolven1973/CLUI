@@ -73,6 +73,11 @@
 
 (cffi:use-foreign-library metalkit)
 
+(cffi:define-foreign-library metal
+  (:darwin (:framework "Metal")))
+
+(cffi:use-foreign-library metal)
+
 (defvar *trace-callbacks* nil)
 
 (defmacro deftraceable-callback (name return-type (&rest args) &body body)
@@ -110,7 +115,14 @@
     :void
   (cb :pointer))
 
+(cffi:defcfun (objc-get-class-list "objc_getClassList" :library foundation)
+    :int
+  (cls-buffer o-class)
+  (buffer-count :int))
 
+(cffi:defcfun (objc-class-get-name "class_getName" :library foundation)
+    :string
+  (cls o-class))
 
 (cffi:defcallback exception-handler :void ((exception :pointer))
   (error "~&objc exception: ~a~%" (extract-nsstring (ns::|reason| exception))))

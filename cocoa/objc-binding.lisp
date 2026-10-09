@@ -224,7 +224,9 @@
 		  (values (list kind name)
 			  (1+ end)))))))))
 
-(defparameter *thingamabobs* (list #\* #\@ #\# #\: #\? #\] #\) #\} #\{ #\[ #\( #\^ #\- #\&))
+(defparameter *thingamabobs* (list #\* #\@ #\#  #\? #\] #\) #\} #\{ #\[ #\( #\^ #\- #\&
+				   ;;#\:
+				   ))
       
 
 (defun position-next-thingamabob (string &key (start 0))
@@ -246,7 +248,7 @@
     (error "~S is not an encoding of a bitfield type." string))
   (multiple-value-bind (int end)
       (parse-integer string :start (1+ start) :junk-allowed t)
-    (let ((aligned-size (+ 8 (mod 8 int))))
+    (let ((aligned-size (* 8 (mod 8 int))))
       ;; this is most likely misguided
       (values (or (case aligned-size
 		    (8 :unsigned-char)
@@ -287,8 +289,10 @@
 	  start))
 
 (defun decode-objc-type (string &key (start 0))
+  (if (string= "" string)
+      nil
   (let ((char (char string start)))
-    (ecase char
+    (case char
       (#\c (values :char (1+ start)))
       (#\i (values :int (1+ start)))
       (#\s (values :short (1+ start)))
@@ -317,7 +321,8 @@
       (#\^ (let ((*indirection-level* (1+ *indirection-level*)))
 	     (parse-pointer string :start start)))
 
-      ((#\r #\n #\N #\o #\O #\R #\V) (decode-objc-type string :start (1+ start)))))) ;; ignore these qualifiers
+      ((#\r #\n #\N #\o #\O #\R #\V) (decode-objc-type string :start (1+ start))) ;; ignore these qualifiers
+      (otherwise (break "~S ~S ~S" char string start))))))
 	      
 (defun parse-method-name (string)
   (let ((basic-name (if (find #\: string)
@@ -473,7 +478,18 @@
 	 (princ export stream)
 	 (princ "|" stream)
        finally (princ ") :ns)" stream))))
-	 
+
+(cffi:defcfun (malloc "malloc") :pointer (size :unsigned-long-long))
+
+(defun list-classes ()
+  (let ((num-classes (objc-get-class-list (cffi-sys:null-pointer) 0)))
+    (when (> num-classes 0)
+      (let ((classes (malloc (* 8 num-classes))))
+	(objc-get-class-list classes num-classes)
+
+	(loop for i from 0 below num-classes
+	      collect (objc-class-get-name (cffi:mem-aref classes :pointer i)))))))
+		 
 
 (defun wrap-ns (&key (with-internals? nil))
   (clrhash *wrapped-selector-table*)
@@ -492,16 +508,17 @@
 			       #@NSArray
 			       #@NSNotificationCenter
 			       #@NSTrackingArea
-			       ;;#@NSWorkspace #@NSWorkspaceOpenConfiguration #@NSAppKitVersion
-			       ;;@NSUserActivity #@NSUserActivityRestoring
-			       ;;#@NSSharingService #@NSSharingServicePicker #@NSPreviewRepresentableActivityItem
+			       ;;;#@NSWorkspace #@NSWorkspaceOpenConfiguration #@NSAppKitVersion
+			       ;;;@NSUserActivity #@NSUserActivityRestoring
+			       ;;;#@NSSharingService #@NSSharingServicePicker #@NSPreviewRepresentableActivityItem
 			       #@NSView #@NSControl #@NSCell #@NSActionCell #@NSSplitView #@NSStackView #@NSTabView
 			       #@NSWindowController
 			       #@NSViewController
 			       #@NSScrollView #@NSScroller #@NSClipView #@NSRulerView #@NSRulerMarker
 			       #@NSTextView ;; #@NSTextViewDelegate
 			       #@NSWindow
-			       #@NSColor #@NSColorList
+			       #@NSColor
+			       #@NSColorList
 			       #@NSScreen
 			       #@NSGraphicsContext #@NSBezierPath
 			       #@NSDate
@@ -509,8 +526,9 @@
 			       #@NSTouchBar
 			       #@NSPasteboard
 			       #@CALayer
-			       #@CAMetalLayer)
-			 "~/clui/cocoa/ns-bindings.lisp"
+			       #@CAMetalLayer
+			       )
+			 "~/ns-bindings.lisp"
 			 (list (class_getClassMethod #@NSThread @(detachNewThreadSelector:toTarget:withObject:))
 			       (class_getClassMethod #@NSApplication @(sharedApplication))
 			       ;;(class_getClassMethod #@NSEvent @(addLocalMonitorForEventsMatchingMask:handler:)) ;; bogus
@@ -551,4 +569,271 @@
 			       (class_getClassMethod #@NSPasteboard @(pasteboardWithName:))
 			       )
 			 :with-internals? with-internals?))
+
+(defun wrap-metal ()
+  (clrhash *wrapped-selector-table*)
+  (setq *export-list* nil)
+  (write-method-bindings
+   (mapcar #'objc-ensure-class
+	   (list "MTL4MachineLearningPipelineReflection" "MTLDeviceFeatureQueries"
+		 "MTLCommandQueueDescriptor" "MTLVertexDescriptor"
+		 "MTLVertexAttributeDescriptorArray" "MTLVertexAttributeDescriptor"
+		 "MTLVertexBufferLayoutDescriptorArray" "MTLVertexBufferLayoutDescriptor"
+		 "MTLCommandBufferDescriptor"
+		 "MTLFunctionStitchingBuiltinThreadPositionInThreadgroup"
+		 "MTLFunctionStitchingBuiltinThreadPositionInGrid"
+		 "MTLFunctionStitchingInputImageblock" "MTLFunctionStitchingInputThreadgroup"
+		 "MTLFunctionStitchingInputSampler" "MTLFunctionStitchingInputTexture"
+		 "MTLFunctionStitchingInputBufferAddress" "MTLFunctionStitchingInputBuffer"
+		 "MTLStitchedLibraryDescriptor" "MTLStitchedLibraryDescriptorSPI"
+		 "MTLFunctionStitchingGraph" "MTLFunctionStitchingGraphSPI"
+		 "MTLFunctionStitchingFunctionNode" "MTLFunctionStitchingEarlyReturnNode"
+		 "MTLFunctionStitchingFunctionNodeSPI" "MTLFunctionStitchingInputNode"
+		 "MTLFunctionStitchingAttributeKernel"
+		 "MTLFunctionStitchingAttributeAlwaysInline" "MTLBufferDescriptor"
+		 "MTLDepthStencilDescriptor" "MTLStencilDescriptor" "MTLFunctionDescriptor"
+		 "MTLIntersectionFunctionDescriptor" "MTLSharedEventListener"
+		 "MTLSharedEventHandle" "MTLBlitPassDescriptor"
+		 "MTLBlitPassSampleBufferAttachmentDescriptorArray"
+		 "MTLBlitPassSampleBufferAttachmentDescriptor" "MTL4CommandQueueDescriptor"
+		 "MTL4CommitOptions" "MTLResourceAddressRangeArray" "MTLResourceAllocationInfo"
+		 "MTLResourceList" "MTL4RenderPipelineBinaryFunctionsDescriptor"
+		 "MTL4RenderPipelineColorAttachmentDescriptorArray"
+		 "MTL4RenderPipelineColorAttachmentDescriptor" "MTLIOAccelService"
+		 "MTLIOAccelServiceGlobalContext" "MTLIOAccelServiceDescriptor"
+		 "MTLIOAccelDeviceShmemPool" "MTL4ArchiveReply" "MTLLinkedFunctions"
+		 "MTLRenderPipelineFunctionsDescriptor" "MTLRenderPipelineDescriptor"
+		 "MTLRenderPipelineColorAttachmentDescriptorArray"
+		 "MTLRenderPipelineReflection" "MTLRenderPipelineColorAttachmentDescriptor"
+		 "MTLLogicalToPhysicalColorAttachmentMap" "MTLMessage" "MTLMessageFilter"
+		 "MTLPostVertexDumpOutput" "MTLStructMember" "MTLType" "MTLArrayType"
+		 "MTLTensorReferenceType" "MTLTextureReferenceType" "MTLPointerType"
+		 "MTLStructType" "MTLResourceStatePassDescriptor"
+		 "MTLResourceStatePassSampleBufferAttachmentDescriptorArray"
+		 "MTLResourceStatePassSampleBufferAttachmentDescriptor"
+		 "MTLComputePipelineDescriptor" "MTLComputePipelineReflection"
+		 "MTL4CompilerTaskOptions" "MTL4CompilerDescriptor" "MTLRenderPassDescriptor"
+		 "MTLRenderPassSampleBufferAttachmentDescriptorArray"
+		 "MTLRenderPassSampleBufferAttachmentDescriptor"
+		 "MTLRenderPassColorAttachmentDescriptorArray"
+		 "MTLRenderPassAttachmentDescriptor" "MTLRenderPassStencilAttachmentDescriptor"
+		 "MTLRenderPassDepthAttachmentDescriptor"
+		 "MTLRenderPassColorAttachmentDescriptor"
+		 "MTL4RenderPipelineDynamicLinkingDescriptor"
+		 "MTL4PipelineStageDynamicLinkingDescriptor"
+		 "MTL4StaticLinkingDescriptor"
+		 ;;"MTLCompiler"
+		 "MTLFunctionVariant" "MTLPrecompiledData"
+		 "MTLConstantRelocation" "MTLBufferRelocation" "MTLFunctionReflection"
+		 "MTLFunctionConstant" "MTLTag" "MTLAttribute" "MTLVertexAttribute"
+		 "MTLCompileFunctionRequestData" "MTLCompileOptions" "MTLTensorDescriptor"
+		 "MTLTensorExtents" "MTLVisibleFunctionTableDescriptor"
+		 "MTLIOCommandQueueDescriptor" "MTLHeapDescriptor"
+		 "MTLTargetDeviceArchitecture" "MTLLoader" "MTLLoadedFileContentsWrapper"
+		 "MTLLoadedFile" "MTLSamplerDescriptor" "MTLGenericBVHBuffersSPI"
+		 "MTLGenericBVHBufferSizesSPI" "MTLAccelerationStructurePassDescriptor"
+		 "MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray"
+		 "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor"
+		 "MTLMotionEstimationPipelineDescriptor" "MTLMotionEstimatorCapabilities"
+		 "MTLResourceListPool" "MTLIOMemoryInfo" "MTLCaptureManager"
+		 "MTLCaptureDescriptor" "MTLIOAccelTextureLayout" "MTLIOCompressor"
+		 "MTLIOAccelIndirectRenderCommand" "MTLIndirectCommandBufferDescriptor"
+		 "MTL4CommandAllocatorDescriptor" "MTLTextureViewDescriptor"
+		 "MTLTextureDescriptor" "MTLSharedTextureHandle"
+		 "MTLCounterSampleBufferDescriptor" "MTLComputePassDescriptor"
+		 "MTLComputePassSampleBufferAttachmentDescriptorArray"
+		 "MTLComputePassSampleBufferAttachmentDescriptor"
+		 "MTLIntersectionFunctionTableDescriptor" "MTLIOAccelDevice" "MTLArchitecture"
+		 "MTLArgumentDescriptor" "MTLIndirectArgumentDescriptor" "MTLProfileControl"
+		 "MTLDebugInstrumentationData" "MTLDebugSubProgram" "MTLDebugLocation"
+		 "MTLPipelineBufferDescriptorArray" "MTLPipelineBufferDescriptor" "MTLArgument"
+		 "MTLIndirectConstantArgument" "MTLImageBlockArgument"
+		 "MTLImageBlockDataArgument" "MTLBuiltInMeshArgument" "MTLBuiltInArgument"
+		 "MTLResidencySetDescriptor" "MTL4CounterHeapDescriptor"
+		 "MTL4BinaryFunctionReflection"
+		 ;;"MTLIOAccelResourcePool"
+		 "MTLDynamicLibraryDescriptorSPI"
+		 "MTLDynamicLibraryContainer"
+		 "MTLFunctionConstantValues" "MTLIndexedConstantValue" "MTLNamedConstantValue"
+		 "MTLMotionKeyframeData" "MTLAccelerationStructureGeometryDescriptor"
+		 "MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor"
+		 "MTLAccelerationStructureMotionCurveGeometryDescriptor"
+		 "MTLAccelerationStructureCurveGeometryDescriptor"
+		 "MTLAccelerationStructureBoundingBoxGeometryDescriptor"
+		 "MTLAccelerationStructureMotionTriangleGeometryDescriptor"
+		 "MTLAccelerationStructureTriangleGeometryDescriptor"
+		 "MTLAccelerationStructureAllocationDescriptor" "MTL4LibraryDescriptor"
+		 "MTL4AccelerationStructureGeometryDescriptor"
+		 "MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor"
+		 "MTL4AccelerationStructureMotionCurveGeometryDescriptor"
+		 "MTL4AccelerationStructureCurveGeometryDescriptor"
+		 "MTL4AccelerationStructureBoundingBoxGeometryDescriptor"
+		 "MTL4AccelerationStructureMotionTriangleGeometryDescriptor"
+		 "MTL4AccelerationStructureTriangleGeometryDescriptor"
+		 "MTLAccelerationStructureDescriptor"
+		 "MTLIndirectInstanceAccelerationStructureDescriptor"
+		 "MTLInstanceAccelerationStructureDescriptor"
+		 "MTLPrimitiveAccelerationStructureDescriptor"
+		 "MTL4AccelerationStructureDescriptor"
+		 "MTL4IndirectInstanceAccelerationStructureDescriptor"
+		 "MTL4InstanceAccelerationStructureDescriptor"
+		 "MTL4PrimitiveAccelerationStructureDescriptor" "MTLIOAccelGLDrawable"
+		 "MTLRasterizationRateMapDescriptor" "MTLRasterizationRateLayerArray"
+		 "MTLRasterizationRateLayerDescriptor" "MTLRasterizationRateSampleArray"
+		 "MTLBinaryEntry" "MTLAirEntry" "MTLBinaryKey" "MTLBinaryArchiveDescriptor"
+		 "MTLEmulationIndirectArgumentBufferLayout" "MTLBVHBuilder" "MTLGPUBVHBuilder"
+		 "MTLBVHDescriptor" "MTLBVHGeometryDescriptor"
+		 "MTLBVHBoundingBoxGeometryDescriptor" "MTLBVHCurveGeometryDescriptor"
+		 "MTLBVHPolygonGeometryDescriptor" "MTL4BinaryFunctionDescriptor"
+		 "MTLLogStateDescriptor" "MTLIOAccelDeviceShmem"
+		 "MTL4PipelineDataSetSerializerDescriptor" "MTL4RenderPassDescriptor"
+		 "MTL4FunctionDescriptor" "MTL4SpecializedFunctionDescriptor"
+		 "MTL4LibraryFunctionDescriptor" "MTL4StitchedFunctionDescriptor"
+		 "MTLStageInputOutputDescriptor" "MTLAttributeDescriptorArray"
+		 "MTLAttributeDescriptor" "MTLBufferLayoutDescriptorArray"
+		 "MTLBufferLayoutDescriptor" "MTL4CommandBufferOptions" "MTLPrivateDataTable"
+		 "MTL4PipelineDescriptor" "MTL4MachineLearningPipelineDescriptor"
+		 "MTL4RenderPipelineDescriptor" "MTL4MeshRenderPipelineDescriptor"
+		 "MTL4TileRenderPipelineDescriptor" "MTL4ComputePipelineDescriptor"
+		 "MTL4PipelineOptions" "MTLShaderValidationConfiguration"
+		 "MTLTileRenderPipelineDescriptor"
+		 "MTLTileRenderPipelineColorAttachmentDescriptorArray"
+		 "MTLTileRenderPipelineColorAttachmentDescriptor" "MTL4ArgumentTableDescriptor"
+		 "MTLResourceViewPoolDescriptor" "MTLIOAccelIndirectComputeCommand"
+		 ;;"MTLMeshRenderPipelineDescriptor"
+		 "MTLIOAccelCommandQueue"
+		 "MTLIOAccelParallelRenderCommandEncoder"
+		 "MTLIOAccelFence"
+		 "MTLIOAccelIndirectArgumentEncoder"
+		 ;;"MTLIOAccelCommandBuffer"
+		 "MTLIOAccelDebugCommandEncoder" "MTLIOAccelCommandEncoder"
+		 "MTLIOAccelResourceStateCommandEncoder" "MTLIOAccelRenderCommandEncoder"
+		 "MTLIOAccelComputeCommandEncoder" "MTLIOAccelBlitCommandEncoder"
+		 ;;"MTLIOAccelHeap"
+		 ;;"MTLIOAccelResource"
+		 "MTLIOAccelIntersectionFunctionTable"
+		 ;;"MTLIOAccelBuffer"
+		 ;;"MTLIOAccelTexture"
+		 "MTLIOAccelPooledResource"
+		 "MTLIOAccelAccelerationStructure" "MTLIOAccelVisibleFunctionTable"
+		 "MTLIOAccelIndirectCommandBuffer" "MTLCaptureScope" "MTLIOAccelIOCommandQueue"
+		 "MTLIOAccelIOHandleCompressed" "MTLIOAccelIOHandleRaw"
+		 "MTLIOAccelIOCommandBuffer" "MTL4DebugCommandEncoder" "MTLLegacySVGPULog"
+		 "MTLLegacySVAccelerationStructureErrorLog" "MTLLegacySVTrapErrorLog"
+		 "MTLLegacySVStackOverflowErrorLog" "MTLLegacySVTextureErrorLog"
+		 "MTLLegacySVBufferErrorLog" "MTLDebugResource"
+		 "MTLDebugRenderTargetAttachmentInfo" "MTLToolsObjectCache"
+		 "MTLLegacySVPipelineStateInfoEncoder" "MTLGPUDebugPipelineStateInfoEncoder"
+		 "MTLDebugBufferMarker" "MTLCountersTraceCommandBuffer"
+		 "MTLCountersTraceCommandEncoder" "MTLCountersTraceResourceStateCommandEncoder"
+		 "MTLCountersTraceRenderCommandEncoder" "MTLCountersTraceComputeCommandEncoder"
+		 "MTLCountersTraceBlitCommandEncoder" "MTLGPUDebugImageData"
+		 "MTLToolsPerfCounterMailbox" "MTLGPUDebugGPULog"
+		 "MTLGPUDebugAccelerationStructureErrorLog" "MTLGPUDebugTrapErrorLog"
+		 "MTLGPUDebugStackOverflowErrorLog" "MTLGPUDebugTextureErrorLog"
+		 "MTLGPUDebugBufferErrorLog" "MTLLegacySVImageData" "MTLToolsObject"
+		 "MTLToolsIOCommandQueue" "MTLDebugIOCommandQueue" "MTLToolsIOScratchBuffer"
+		 "MTLDebugIOScratchBuffer" "MTLToolsIOScratchBufferAllocator"
+		 "MTLDebugIOScratchBufferAllocator" "MTLToolsIOHandle" "MTLDebugIOHandle"
+		 "MTLToolsIOCommandBuffer" "MTLDebugIOCommandBuffer" "MTLToolsResourceViewPool"
+		 "MTLDebugResourceViewPool" "MTL4ToolsArgumentTable" "MTL4DebugArgumentTable"
+		 "MTL4ToolsCommandQueue" "MTL4DebugCommandQueue" "MTL4GPUDebugCommandQueue"
+		 "MTL4ToolsCompilerTask" "MTLToolsArgumentEncoder" "MTLLegacySVArgumentEncoder"
+		 "MTLDebugArgumentEncoder" "MTLGPUDebugArgumentEncoder"
+		 "MTLToolsDeadlineProfile" "MTLDebugDeadlineProfile" "MTLToolsFunctionHandle"
+		 "MTLGPUDebugFunctionHandle" "MTLDebugFunctionHandle"
+		 "MTLLegacySVFunctionHandle" "MTLToolsGLDrawable" "MTLToolsTextureLayout"
+		 "MTLDebugTextureLayout" "MTL4ToolsMachineLearningPipelineState"
+		 "MTL4DebugMachineLearningPipelineState" "MTLToolsResourceGroupSPI"
+		 "MTL4ToolsCounterHeap" "MTL4DebugCounterHeap" "MTL4ToolsBinaryFunction"
+		 "MTL4GPUDebugBinaryFunction" "MTL4DebugBinaryFunction"
+		 "MTLToolsRasterizationRateMap" "MTLToolsResidencySet"
+		 "MTLLegacySVResidencySet" "MTLDebugResidencySet" "MTLGPUDebugResidencySet"
+		 "MTLToolsRenderPipelineState" "MTLDebugRenderPipelineState"
+		 "MTLTelemetryRenderPipelineState" "MTLLegacySVRenderPipelineState"
+		 "MTLGPUDebugRenderPipelineState" "MTLToolsPipelineLibrary"
+		 "MTLDebugPipelineLibrary" "MTLToolsFunction" "MTLLegacySVFunction"
+		 "MTLGPUDebugFunction" "MTLDebugFunction" "MTLToolsEvent" "MTLDebugEvent"
+		 "MTLToolsSharedEvent" "MTLDebugSharedEvent" "MTLToolsLateEvalEvent"
+		 "MTLDebugLateEvalEvent" "MTL4ToolsPipelineDataSetSerializer"
+		 "MTL4ToolsCommandAllocator" "MTL4DebugCommandAllocator"
+		 ;;"MTLToolsDevice"
+		 ;;"MTLDebugDevice"
+		 "MTLTelemetryDevice"
+		 ;;"MTLCountersDevice"
+		 ;;"MTLLegacySVDevice"
+		 ;;"MTLGPUDebugDevice"
+		 "MTLToolsDepthStencilState" "MTLDebugDepthStencilState"
+		 "MTLTelemetryDepthStencilState" "MTLToolsComputePipelineState"
+		 "MTLLegacySVComputePipelineState" "MTLDebugComputePipelineState"
+		 "MTLTelemetryComputePipelineState" "MTLGPUDebugComputePipelineState"
+		 "MTLToolsPerformanceStateAssertion" "MTLToolsDynamicLibrary"
+		 "MTLGPUDebugDynamicLibrary" "MTLLegacySVDynamicLibrary"
+		 "MTLDebugDynamicLibrary" "MTLToolsCommandQueue" "MTLTelemetryCommandQueue"
+		 "MTLLegacySVCommandQueue" "MTLCountersCommandQueue" "MTLDebugCommandQueue"
+		 "MTLGPUDebugCommandQueue" "MTL4ToolsArchive" "MTL4DebugArchive"
+		 "MTL4GPUDebugArchive" "MTLToolsCommandBuffer" "MTLTelemetryCommandBuffer"
+		 "MTLCountersCommandBuffer" "MTLDebugCommandBuffer" "MTLGPUDebugCommandBuffer"
+		 "MTLLegacySVCommandBuffer" "MTLToolsSamplerState" "MTLDebugSamplerState"
+		 "MTLTelemetrySamplerState" "MTLToolsMotionEstimationPipeline"
+		 "MTLDebugMotionEstimationPipeline" "MTLToolsLibrary" "MTLLegacySVLibrary"
+		 ;;"MTLDebugLibrary"
+		 "MTLGPUDebugLibrary"
+		 "MTL4ToolsCommandBuffer"
+		 "MTL4GPUDebugCommandBuffer" "MTL4DebugCommandBuffer"
+		 "MTLToolsIndirectRenderCommand" "MTLDebugIndirectRenderCommand"
+		 "MTLGPUDebugIndirectRenderCommand" "MTLLegacySVIndirectRenderCommand"
+		 "MTLToolsHeap" "MTLDebugHeap" "MTLGPUDebugHeap" "MTLLegacySVHeap"
+		 "MTLTelemetryHeap" "MTLToolsCounterSampleBuffer" "MTLDebugCounterSampleBuffer"
+		 "MTLToolsFence" "MTLToolsResource" "MTLToolsTexture"
+		 ;;"MTLGPUDebugTexture"
+		 "MTLDebugTexture" "MTLLegacySVTexture" "MTLTelemetryTexture" "MTLToolsTensor"
+		 "MTLDebugTensor" "MTLToolsIntersectionFunctionTable"
+		 "MTLLegacySVIntersectionFunctionTable" "MTLDebugIntersectionFunctionTable"
+		 "MTLGPUDebugIntersectionFunctionTable" "MTLToolsAccelerationStructure"
+		 "MTLLegacySVAccelerationStructure" "MTLDebugAccelerationStructure"
+		 "MTLGPUDebugAccelerationStructure" "MTLToolsVisibleFunctionTable"
+		 "MTLLegacySVVisibleFunctionTable" "MTLGPUDebugVisibleFunctionTable"
+		 "MTLDebugVisibleFunctionTable" "MTLToolsBuffer" "MTLTelemetryBuffer"
+		 "MTLDebugBuffer" "MTLLegacySVBuffer"
+		 ;;"MTLGPUDebugBuffer"
+		 "MTLToolsIndirectCommandBuffer" "MTLLegacySVIndirectCommandBuffer"
+		 "MTLGPUDebugIndirectCommandBuffer" "MTLDebugIndirectCommandBuffer"
+		 "MTLToolsCommandEncoder" "MTLToolsVideoCommandEncoder"
+		 "MTLDebugVideoCommandEncoder" "MTLToolsResourceStateCommandEncoder"
+		 "MTLCountersResourceStateCommandEncoder" "MTLDebugResourceStateCommandEncoder"
+		 "MTLToolsParallelRenderCommandEncoder" "MTLDebugParallelRenderCommandEncoder"
+		 "MTLGPUDebugParallelRenderCommandEncoder"
+		 "MTLLegacySVParallelRenderCommandEncoder"
+		 "MTLTelemetryParallelRenderCommandEncoder"
+		 "MTLCountersParallelRenderCommandEncoder"
+		 "MTLToolsAccelerationStructureCommandEncoder"
+		 "MTLLegacySVAccelerationStructureCommandEncoder"
+		 "MTLDebugAccelerationStructureCommandEncoder"
+		 "MTLGPUDebugAccelerationStructureCommandEncoder"
+		 "MTLToolsComputeCommandEncoder" "MTLLegacySVComputeCommandEncoder"
+		 "MTLGPUDebugComputeCommandEncoder" "MTLTelemetryComputeCommandEncoder"
+		 "MTLDebugComputeCommandEncoder" "MTLCountersComputeCommandEncoder"
+		 "MTLToolsBlitCommandEncoder" "MTLCountersBlitCommandEncoder"
+		 "MTLTelemetryBlitCommandEncoder" "MTLGPUDebugBlitCommandEncoder"
+		 "MTLDebugBlitCommandEncoder" "MTLLegacySVBlitCommandEncoder"
+		 "MTLToolsRenderCommandEncoder" "MTLTelemetryRenderCommandEncoder"
+		 "MTLDebugRenderCommandEncoder"
+		 ;;"MTLLegacySVRenderCommandEncoder"
+		 "MTLCountersRenderCommandEncoder"
+		 ;;"MTLGPUDebugRenderCommandEncoder"
+		 "MTLToolsBinaryArchive" "MTLDebugBinaryArchive" "MTLGPUDebugBinaryArchive"
+		 "MTLLegacySVBinaryArchive" "MTLToolsTextureViewPool" "MTLDebugTextureViewPool"
+		 "MTLGPUDebugTextureViewPool" "MTL4ToolsCompiler" "MTL4DebugCompiler"
+		 "MTL4GPUDebugCompiler" "MTLToolsIndirectComputeCommand"
+		 "MTLGPUDebugIndirectComputeCommand" "MTLLegacySVIndirectComputeCommand"
+		 "MTLDebugIndirectComputeCommand" "MTL4ToolsCommandEncoder"
+		 "MTL4ToolsMachineLearningCommandEncoder"
+		 "MTL4DebugMachineLearningCommandEncoder" "MTL4ToolsComputeCommandEncoder"
+		 "MTL4DebugComputeCommandEncoder" "MTL4GPUDebugComputeCommandEncoder"
+		 "MTL4ToolsRenderCommandEncoder" "MTL4DebugRenderCommandEncoder"
+		 ;;"MTL4GPUDebugRenderCommandEncoder"
+		 ))
+   "~/metal-bindings.lisp"
+   nil))
 
